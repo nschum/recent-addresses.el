@@ -37,6 +37,8 @@
 ;;
 ;;; Change Log:
 ;;
+;;    Made sure headers are searched as full words.
+;;
 ;; 2009-04-05 (0.1)
 ;;    Initial release.
 ;;
@@ -204,7 +206,8 @@ Unless FORCE is set, an existing list will not be overwritten."
     (goto-char (point-min))
     (let ((case-fold-search t)
           address addresses)
-      (when (search-forward (concat header ":") nil t)
+      (when (re-search-forward (concat "\\b" (regexp-quote header) "\\b:")
+                               nil t)
         (skip-chars-forward " \t")
         (setq address (recent-addresses-parse-at-point))
         (while address
