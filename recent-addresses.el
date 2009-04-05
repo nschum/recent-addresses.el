@@ -84,7 +84,7 @@ See `message-from-style'."
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar recent-addresses-list nil)
+(defvar recent-addresses-list 'not-fetched)
 
 (defvar recent-addresses-mode-map
   (let ((keymap (make-sparse-keymap)))
@@ -118,22 +118,20 @@ following to your .emacs:
   (if recent-addresses-mode
       (progn
         (recent-addresses-load)
-        (add-hook 'kill-emacs-hook 'recent-addresses-save)
         (add-hook 'gnus-after-exiting-gnus-hook 'recent-addresses-save)
         (add-hook 'message-send-hook 'recent-addresses-add-headers)
         (add-hook 'gnus-article-prepare-hook
                   'recent-addresses-add-headers-received))
-    (remove-hook 'kill-emacs-hook 'recent-addresses-save)
     (remove-hook 'gnus-after-exiting-gnus-hook 'recent-addresses-save)
     (remove-hook 'message-send-hook 'recent-addresses-add-headers)
     (remove-hook 'gnus-article-prepare-hook
                  'recent-addresses-add-headers-received)
-    (recent-addresses-save)
-    (setq recent-addresses-list nil)))
+    (recent-addresses-save)))
 
 (defun recent-addresses-add (address)
   "Add ADDRESS to the front of `recent-addresses-list'.
 Address can be an email address, or a cons of an email address and a name."
+  (recent-addresses-load)
   (unless (consp address) (setq address (cons address nil)))
   (let (match)
     (when (setq match (assoc (car address) recent-addresses-list))
@@ -151,16 +149,15 @@ Address can be an email address, or a cons of an email address and a name."
 
 (defun recent-addresses-purge ()
   "Reduce `recent-addresses-list' to `recent-addresses-limit'."
+  (recent-addresses-load)
   (let ((end (nthcdr (1- recent-addresses-limit) recent-addresses-list)))
     (when end
       (setcdr end nil))))
 
-(defun recent-addresses-save (&optional force)
-  "Store the collected addresses to `recent-addresses-file'.
-Unless FORCE is set, an empty list will not be written to prevent accidental
-overwriting."
+(defun recent-addresses-save ()
+  "Store the collected addresses to `recent-addresses-file'."
   (interactive)
-  (when (or force recent-addresses-list)
+  (unless (eq recent-addresses-list 'not-fetched)
     (recent-addresses-purge)
     (with-temp-buffer
       (set-buffer-file-coding-system recent-addresses-file-coding-system)
@@ -176,9 +173,15 @@ overwriting."
 (defun recent-addresses-load (&optional force)
   "Load the previously collected addresses from `recent-addresses-file'.
 Unless FORCE is set, an existing list will not be overwritten."
-  (and (or force (null recent-addresses-list))
-       (file-readable-p recent-addresses-file)
-       (load-file recent-addresses-file)))
+  (when (or force (eq recent-addresses-list 'not-fetched))
+    (condition-case err
+        (progn
+          (if (file-readable-p recent-addresses-file)
+              (load-file recent-addresses-file)
+            (setq recent-addresses-list nil))
+          (add-hook 'kill-emacs-hook 'recent-addresses-save))
+      (error (message "An error occurred while reading recent addresses: %s"
+                      (error-message-string err))))))
 
 ;;; parsing ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -223,6 +226,7 @@ Unless FORCE is set, an existing list will not be overwritten."
 
 (defun recent-addresses-read (&optional prompt)
   "Prompt the user for an element of `recent-addresses-list'."
+  (recent-addresses-load)
   (unless prompt (setq prompt "Email address: "))
   (let* ((choices (mapcar (lambda (pair)
                             (cons (if (cdr pair)
