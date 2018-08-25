@@ -241,12 +241,7 @@ Unless FORCE is set, an existing list will not be overwritten."
          (candidates (mapcar 'car choices))
          (choice (if ido-mode
                      (ido-completing-read prompt candidates)
-                   (require 'iswitchb)
-                   (with-no-warnings
-                     (let ((iswitchb-make-buflist-hook
-                            (lambda () (setq iswitchb-temp-buflist
-                                             (mapcar 'car choices)))))
-                       (iswitchb-read-buffer prompt))))))
+		   (completing-read prompt candidates))))
     (or (cdr (assoc choice choices))
         choice)))
 
